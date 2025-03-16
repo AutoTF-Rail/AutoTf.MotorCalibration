@@ -1,19 +1,19 @@
 ﻿using System.Device.I2c;
 using Iot.Device.Pwm;
 
-internal class Program
+namespace AutoTf.MotorCalibration;
+
+internal static class Program
 {
-	private const int PWM_FREQUENCY = 50;      // Frequency for servo motors (50 Hz)
-	private const double MIN_PULSE_WIDTH_MS = 0.5;  // Minimum pulse width for servo (ms)
-	private const double MAX_PULSE_WIDTH_MS = 2.5;
-	private const double NEUTRAL_PULSE_WIDTH_MS = 1.5;
+	private const int PwmFrequency = 50;
+	private const double MinPulseWidthMs = 0.5;
+	private const double MaxPulseWidthMs = 2.5;
+	private const double NeutralPulseWidthMs = 1.5;
 	
 	public static void Main(string[] args)
 	{
 		I2cConnectionSettings i2CSettings = new I2cConnectionSettings(1, Pca9685.I2cAddressBase);
 		I2cDevice i2CDevice = I2cDevice.Create(i2CSettings);
-		byte readValue = i2CDevice.ReadByte();
-		
 		
 		ResetPca9685(i2CDevice);
 		
@@ -21,18 +21,18 @@ internal class Program
 		Console.WriteLine("Cycle: " + pca9685.GetDutyCycle(10));
 		
 		void SetServoAngle(int lever, int angle, int offset = 0)
-        {
-            angle += offset;
-            angle = Math.Max(0, Math.Min(270, angle));
+		{
+			angle += offset;
+			angle = Math.Max(0, Math.Min(270, angle));
 
-            double pulseWidthMs = MIN_PULSE_WIDTH_MS + (angle / 270.0) * (MAX_PULSE_WIDTH_MS - MIN_PULSE_WIDTH_MS);
-            double dutyCycle = (pulseWidthMs / (1000.0 / PWM_FREQUENCY)) * 100;
-            pca9685.SetDutyCycle(lever, dutyCycle / 100);
-        }
+			double pulseWidthMs = MinPulseWidthMs + (angle / 270.0) * (MaxPulseWidthMs - MinPulseWidthMs);
+			double dutyCycle = (pulseWidthMs / (1000.0 / PwmFrequency)) * 100;
+			pca9685.SetDutyCycle(lever, dutyCycle / 100);
+		}
 
 		void MoveToNeutralPosition()
 		{
-			double dutyCycle = (NEUTRAL_PULSE_WIDTH_MS / (1000.0 / PWM_FREQUENCY)) * 100;
+			double dutyCycle = (NeutralPulseWidthMs / (1000.0 / PwmFrequency)) * 100;
 			pca9685.SetDutyCycle(0, dutyCycle / 100);
 			pca9685.SetDutyCycle(1, dutyCycle / 100);
 		}
@@ -65,11 +65,13 @@ internal class Program
 					Console.WriteLine("Moving to 135 degrees");
 					SetServoAngle(0, 135, 5);
 					Thread.Sleep(1000);
+					
 					Console.WriteLine("Moving to 135 + 80 degrees");
-					SetServoAngle(0, 135 + 80, 0);
+					SetServoAngle(0, 135 + 80);
 					Thread.Sleep(1000);
-					Console.WriteLine("Moving to (135 - 60 degrees");
-					SetServoAngle(0, 135 - 70, 0);
+					
+					Console.WriteLine("Moving to (135 - 70 degrees");
+					SetServoAngle(0, 135 - 70);
 					Thread.Sleep(1250);
 				}
 			}
@@ -79,17 +81,17 @@ internal class Program
 				{
 					Console.WriteLine($"[{i}]");
 					
-					SetServoAngle(0, 135, 0);
-					SetServoAngle(1, 135, 0);
-					Thread.Sleep(1000);
+					Task.Run(() => SetServoAngle(0, 135));
+					Task.Run(() => SetServoAngle(1, 135));
+					Thread.Sleep(600);
 					
-					SetServoAngle(0, 135 + 45, 0);
-					SetServoAngle(1, 135 - 45, 0);
-					Thread.Sleep(1000);
+					Task.Run(() => SetServoAngle(0, 135 + 45));
+					Task.Run(() => SetServoAngle(1, 135 - 45));
+					Thread.Sleep(600);
 					
-					SetServoAngle(0, 135 - 45, 0);
-					SetServoAngle(1, 135 + 45, 0);
-					Thread.Sleep(1200);
+					Task.Run(() => SetServoAngle(0, 135 - 45));
+					Task.Run(() => SetServoAngle(1, 135 + 45));
+					Thread.Sleep(800);
 				}
 			}
 			else if (input == "4")
@@ -107,10 +109,7 @@ internal class Program
 						canRunInner = false;
 					else if(int.TryParse(inputNew, out int result))
 					{
-						int offset = 0;
-						// if(leverInt == 1)
-						//  offset = 5;
-						SetServoAngle(leverInt, result, offset);
+						SetServoAngle(leverInt, result);
 					}
 				}
 			}

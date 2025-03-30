@@ -5,39 +5,29 @@ namespace AutoTf.MotorCalibration;
 
 internal static class Program
 {
-	private const int PwmFrequency = 50;
-	private const double MinPulseWidthMs = 0.5;
-	private const double MaxPulseWidthMs = 2.5;
-	private const double NeutralPulseWidthMs = 1.5;
-	
 	public static void Main(string[] args)
 	{
-		I2cConnectionSettings i2CSettings = new I2cConnectionSettings(1, Pca9685.I2cAddressBase);
+		I2cConnectionSettings i2CSettings = new I2cConnectionSettings(1, 0x40);
 		I2cDevice i2CDevice = I2cDevice.Create(i2CSettings);
 		
 		ResetPca9685(i2CDevice);
 		
 		Pca9685 pca9685 = new Pca9685(i2CDevice);
-		Console.WriteLine("Cycle: " + pca9685.GetDutyCycle(10));
+		Console.WriteLine("Cycle: " + pca9685.GetDutyCycle(1));
 		
 		void SetServoAngle(int lever, int angle, int offset = 0)
 		{
 			angle += offset;
 			angle = Math.Max(0, Math.Min(270, angle));
 
-			double pulseWidthMs = MinPulseWidthMs + (angle / 270.0) * (MaxPulseWidthMs - MinPulseWidthMs);
-			double dutyCycle = (pulseWidthMs / (1000.0 / PwmFrequency)) * 100;
-			pca9685.SetDutyCycle(lever, dutyCycle / 100);
+			double minDutyCycle = 0.065;
+			double maxDutyCycle = 0.53;
+
+			double dutyCycle = minDutyCycle + (angle / 270.0) * (maxDutyCycle - minDutyCycle);
+
+			pca9685.SetDutyCycle(lever, dutyCycle);
 		}
 
-		void MoveToNeutralPosition()
-		{
-			double dutyCycle = (NeutralPulseWidthMs / (1000.0 / PwmFrequency)) * 100;
-			pca9685.SetDutyCycle(0, dutyCycle / 100);
-			pca9685.SetDutyCycle(1, dutyCycle / 100);
-		}
-		
-		MoveToNeutralPosition();
 		Thread.Sleep(1250);
 		bool canRun = true;
 		
@@ -49,7 +39,8 @@ internal static class Program
 			Console.WriteLine("[2] Demo angles");
 			Console.WriteLine("[3] Demo two levers");
 			Console.WriteLine("[4] Set Deg");
-			Console.WriteLine("[5] Exit");
+			Console.WriteLine("[5] Set Duty Cycle");
+			Console.WriteLine("[6] Exit");
 			string input = Console.ReadLine()!;
 			if (input == "1")
 			{
@@ -113,13 +104,31 @@ internal static class Program
 					}
 				}
 			}
+			else if (input == "5")
+			{
+				bool canRunInner = true;
+				while (canRunInner)
+				{
+					Console.Write("Lever: ");
+					string? lever = Console.ReadLine();
+					if (!int.TryParse(lever, out int leverInt))
+						return;
+					Console.Write("Degree: ");
+					string? inputNew = Console.ReadLine();
+					if (inputNew!.ToLower() == "e")
+						canRunInner = false;
+					else if(double.TryParse(inputNew, out double result))
+					{
+						pca9685.SetDutyCycle(leverInt, result);
+					}
+				}
+			}
 			else
 			{
 				canRun = false;
 			}
 		}
-		MoveToNeutralPosition();
-		// pwmChannel.Dispose();
+		
 		pca9685.Dispose();
 		i2CDevice.Dispose();
 	}

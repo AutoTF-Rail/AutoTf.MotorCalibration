@@ -1,5 +1,6 @@
 ﻿using System.Device.I2c;
 using Iot.Device.Pwm;
+// ReSharper disable AccessToDisposedClosure
 
 namespace AutoTf.MotorCalibration;
 
@@ -12,21 +13,7 @@ internal static class Program
 		
 		ResetPca9685(i2CDevice);
 		
-		Pca9685 pca9685 = new Pca9685(i2CDevice);
-		Console.WriteLine("Cycle: " + pca9685.GetDutyCycle(1));
-		
-		void SetServoAngle(int lever, int angle, int offset = 0)
-		{
-			angle += offset;
-			angle = Math.Max(0, Math.Min(270, angle));
-
-			double minDutyCycle = 0.065;
-			double maxDutyCycle = 0.53;
-
-			double dutyCycle = minDutyCycle + (angle / 270.0) * (maxDutyCycle - minDutyCycle);
-
-			pca9685.SetDutyCycle(lever, dutyCycle);
-		}
+		Pca9685 pca = new Pca9685(i2CDevice);
 
 		Thread.Sleep(1250);
 		bool canRun = true;
@@ -34,111 +21,132 @@ internal static class Program
 		while(canRun)
 		{
 			Console.Clear();
-			Console.WriteLine("Ready for input:");
 			Console.WriteLine("[1] Move to 135deg");
-			Console.WriteLine("[2] Demo angles");
-			Console.WriteLine("[3] Demo two levers");
-			Console.WriteLine("[4] Set Deg");
-			Console.WriteLine("[5] Set Duty Cycle");
-			Console.WriteLine("[6] Exit");
+			Console.WriteLine("[2] Demo two levers");
+			Console.WriteLine("[3] Set Deg");
+			Console.WriteLine("[4] Set Duty Cycle");
+			Console.WriteLine("[5] Exit");
+			
 			string input = Console.ReadLine()!;
-			if (input == "1")
+			
+			switch (input)
 			{
-				SetServoAngle(0, 135);
-				SetServoAngle(1, 135, 5);
-				Thread.Sleep(1500);
-			}
-			else if(input == "2")
-			{
-				for (int i = 0; i < 150; i++)
-				{
-					Console.WriteLine($"[{i}]");
-					Console.WriteLine("Moving to 135 degrees");
-					SetServoAngle(0, 135, 5);
-					Thread.Sleep(1000);
-					
-					Console.WriteLine("Moving to 135 + 80 degrees");
-					SetServoAngle(0, 135 + 80);
-					Thread.Sleep(1000);
-					
-					Console.WriteLine("Moving to (135 - 70 degrees");
-					SetServoAngle(0, 135 - 70);
-					Thread.Sleep(1250);
-				}
-			}
-			else if(input == "3")
-			{
-				for (int i = 0; i < 150; i++)
-				{
-					Console.WriteLine($"[{i}]");
-					
-					Task.Run(() => SetServoAngle(0, 135));
-					Task.Run(() => SetServoAngle(1, 135));
-					Thread.Sleep(600);
-					
-					Task.Run(() => SetServoAngle(0, 135 + 45));
-					Task.Run(() => SetServoAngle(1, 135 - 45));
-					Thread.Sleep(600);
-					
-					Task.Run(() => SetServoAngle(0, 135 - 45));
-					Task.Run(() => SetServoAngle(1, 135 + 45));
-					Thread.Sleep(800);
-				}
-			}
-			else if (input == "4")
-			{
-				bool canRunInner = true;
-				while (canRunInner)
-				{
-					Console.Write("Lever: ");
-					string? lever = Console.ReadLine();
-					if (!int.TryParse(lever, out int leverInt))
-						return;
-					Console.Write("Degree: ");
-					string? inputNew = Console.ReadLine();
-					if (inputNew!.ToLower() == "e")
-						canRunInner = false;
-					else if(int.TryParse(inputNew, out int result))
-					{
-						SetServoAngle(leverInt, result);
-					}
-				}
-			}
-			else if (input == "5")
-			{
-				bool canRunInner = true;
-				while (canRunInner)
-				{
-					Console.Write("Lever: ");
-					string? lever = Console.ReadLine();
-					if (!int.TryParse(lever, out int leverInt))
-						return;
-					Console.Write("Degree: ");
-					string? inputNew = Console.ReadLine();
-					if (inputNew!.ToLower() == "e")
-						canRunInner = false;
-					else if(double.TryParse(inputNew, out double result))
-					{
-						pca9685.SetDutyCycle(leverInt, result);
-					}
-				}
-			}
-			else
-			{
-				canRun = false;
+				case "1":
+					SetServoToCenter(pca);
+					break;
+				case "2":
+					Demo2LeverAngles(pca);
+					break;
+				case "3":
+					SetDegLoop(pca);
+					break;
+				case "4":
+					SetDutyCycleLoop(pca);
+					break;
+				default:
+					canRun = false;
+					break;
 			}
 		}
 		
-		pca9685.Dispose();
+		pca.Dispose();
 		i2CDevice.Dispose();
 	}
-	
+
+	private static void SetServoToCenter(Pca9685 pca)
+	{
+		SetServoAngle(pca, 0, 135);
+		SetServoAngle(pca, 1, 135, 5);
+	}
+
+	private static void SetDutyCycleLoop(Pca9685 pca)
+	{
+		bool canRunInner = true;
+		while (canRunInner)
+		{
+			Console.Write("Lever: ");
+			string? lever = Console.ReadLine();
+			
+			if (!int.TryParse(lever, out int leverInt))
+				continue;
+			
+			Console.Write("Degree: ");
+			string? inputNew = Console.ReadLine();
+			
+			if (inputNew!.ToLower() == "e")
+				canRunInner = false;
+			else if(double.TryParse(inputNew, out double result))
+			{
+				pca.SetDutyCycle(leverInt, result);
+			}
+		}
+	}
+
+	private static void SetDegLoop(Pca9685 pca)
+	{
+		bool canRunInner = true;
+		while (canRunInner)
+		{
+			Console.Write("Lever: ");
+			string? lever = Console.ReadLine();
+					
+			if (!int.TryParse(lever, out int leverInt))
+				continue;
+					
+			Console.Write("Degree: ");
+			string? inputNew = Console.ReadLine();
+					
+			if (inputNew!.ToLower() == "e")
+				canRunInner = false;
+			else if(int.TryParse(inputNew, out int result))
+			{
+				SetServoAngle(pca, leverInt, result);
+			}
+		}
+	}
+
+	private static void Demo2LeverAngles(Pca9685 pca)
+	{
+		for (int i = 0; i < 150; i++)
+		{
+			Console.WriteLine($"[{i}]");
+					
+			Task.Run(() => SetServoAngle(pca, 0, 135));
+			Task.Run(() => SetServoAngle(pca, 1, 135));
+			Thread.Sleep(600);
+					
+			Task.Run(() => SetServoAngle(pca, 0, 135 + 45));
+			Task.Run(() => SetServoAngle(pca, 1, 135 - 45));
+			Thread.Sleep(600);
+					
+			Task.Run(() => SetServoAngle(pca, 0, 135 - 45));
+			Task.Run(() => SetServoAngle(pca, 1, 135 + 45));
+			Thread.Sleep(800);
+		}
+	}
+
+	private static void SetServoAngle(Pca9685 pca, int lever, int angle, int offset = 0)
+	{
+		angle += offset;
+		angle = Math.Max(0, Math.Min(270, angle));
+
+		double minDutyCycle = 0.065;
+		double maxDutyCycle = 0.53;
+
+		double dutyCycle = minDutyCycle + (angle / 270.0) * (maxDutyCycle - minDutyCycle);
+
+		pca.SetDutyCycle(lever, dutyCycle);
+	}
+
+	/// <summary>
+	/// This method is needed, to soft reset the PCA board. If we don't do this on startup, it might freeze and we won't be able to control the servos.
+	/// </summary>
 	private static void ResetPca9685(I2cDevice i2CDevice)
 	{
 		byte mode1RegisterAddress = 0x00;
 		byte resetValue = 0x80; 
         
-		i2CDevice.Write(new ReadOnlySpan<byte>(new byte[] { mode1RegisterAddress, resetValue }));
+		i2CDevice.Write(new ReadOnlySpan<byte>([mode1RegisterAddress, resetValue]));
 
 		Thread.Sleep(10);
 	}

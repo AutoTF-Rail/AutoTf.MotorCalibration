@@ -5,6 +5,14 @@ A very simple CLI tool to control and calibrate (set desired angles) motors used
 
 The calculation code in this repo is also used in [AutoTF-Rail/AutoTf.CentralBridgeOS](https://github.com/AutoTF-Rail/AutoTf.CentralBridgeOS) > [MotorManager.cs](https://github.com/AutoTF-Rail/AutoTf.CentralBridgeOS/blob/main/AutoTf.CentralBridgeOS.Services/MotorManager.cs)
 
+## Pin configuration
+
+The code in this repo is being run on a Raspberry Pi 4 Model B, using the following pin configuration to the BCA9685:
+(with the pins of the PI on the right side view, top to bottom):
+1: EMPTY 2: VCC
+3: SDA 4: V+
+5: SCL 6: GND
+
 
 ## Info & Contributions
 
